@@ -1,0 +1,10 @@
+pandas>=2.0
+numpy>=1.24
+requests>=2.31
+statsmodels>=0.14
+scipy>=1.11
+scikit-learn>=1.3
+xgboost>=2.0
+torch>=2.2          # LSTM (CPU build is enough; replaces TensorFlow from CP1)
+matplotlib>=3.7
+pytest>=8
