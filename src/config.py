@@ -1,13 +1,15 @@
-"""Locked CP2 configuration. Every value here is fixed by the CP1 proposal
-(Chapter 3) and must not be changed after results are seen."""
+"""CP2 configuration, protocol v2. Values follow the CP1 proposal (Chapter 3)
+except the changes listed and justified in CHANGES_v2.md, fixed before the v2
+run. Nothing here may change after v2 results are seen."""
 
 HORIZONS = [1, 4, 8]          # weeks ahead (Section 3.6.3)
-TRAIN_MIN = 260               # ~5-year warm-up before first origin (3.5.7)
+TRAIN_MIN = 208               # v2: 4-year warm-up (CHANGES_v2.md #1); v1 used 260
 TEST_LEN = 52                 # weeks per outer fold
-STEP = 52                     # origin advance -> 6 folds
+STEP = 52                     # origin advance -> 8 folds under v2
 INNER_VAL = 52                # inner expanding-window validation length
 OUTBREAK_Q = 0.75             # per-fold training-window 75th percentile (3.6.3)
 BREAK_DATE = "2014-01-01"     # documented lab-confirmation policy boundary
+COVID_START, COVID_END = "2020-03-18", "2022-03-31"   # MCO -> endemic phase (v2 #5)
 SEASON = 52
 SEED = 42
 LSTM_SEEDS = [0, 1, 2, 3, 4]  # instability made visible (3.5.5)

@@ -137,12 +137,14 @@ def main():
 
     # ---- 4. feature-group ablation (Objective 2) --------------------------
     abl = []
-    sets = {"cases_only": ["cases"],
-            "cases+calendar+regime": ["cases", "calendar", "regime"],
-            "full": None}
-    for name, groups in sets.items():
-        c = feature_cols(df, groups)
-        Xa = df[c].to_numpy(float)
+    df_c = build_features(raw, add_regime=use_regime, add_covid=True)
+    sets = {"cases_only": (df, ["cases"]),
+            "cases+calendar+regime": (df, ["cases", "calendar", "regime"]),
+            "full": (df, None),
+            "full+covid (post hoc)": (df_c, None)}      # CHANGES_v2.md #5
+    for name, (frame, groups) in sets.items():
+        c = feature_cols(frame, groups)
+        Xa = frame[c].to_numpy(float)
         for kind in ["rf", "xgb"]:
             for h in HORIZONS:
                 for k, train, test in outer_folds(n, h, first_valid=first_valid):

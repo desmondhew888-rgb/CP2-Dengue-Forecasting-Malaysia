@@ -3,7 +3,7 @@ features. Every feature uses only information available at the origin t."""
 import numpy as np
 import pandas as pd
 
-from .config import BREAK_DATE
+from .config import BREAK_DATE, COVID_END, COVID_START
 
 BASE = ["dengue_total", "rain_chirps", "rain_chirps_pop", "temp_mean",
         "humidity"]
@@ -15,6 +15,7 @@ FEATURE_GROUPS = {
     "humidity": lambda c: c.startswith("hum_"),
     "calendar": lambda c: c in ("week_of_year", "month", "year"),
     "regime": lambda c: c == "regime",
+    "covid": lambda c: c == "covid_mco",
 }
 
 
@@ -33,7 +34,7 @@ def load_series(path):
     return df.reset_index()
 
 
-def build_features(df, add_regime=True):
+def build_features(df, add_regime=True, add_covid=False):
     df = df.copy()
     y = df["dengue_total"]
     for lag in [1, 2, 3, 4, 6, 8, 12]:
@@ -57,6 +58,9 @@ def build_features(df, add_regime=True):
     df["year"] = df["start"].dt.year
     if add_regime:
         df["regime"] = (df["start"] >= pd.Timestamp(BREAK_DATE)).astype(int)
+    if add_covid:
+        df["covid_mco"] = ((df["start"] >= pd.Timestamp(COVID_START))
+                           & (df["start"] <= pd.Timestamp(COVID_END))).astype(int)
     return df
 
 

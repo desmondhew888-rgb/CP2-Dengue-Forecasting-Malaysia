@@ -10,13 +10,22 @@ only if its target is already observed at the origin: t + h <= o.
 """
 import numpy as np
 
-from .config import INNER_VAL, STEP, TEST_LEN, TRAIN_MIN
+from .config import HORIZONS, INNER_VAL, STEP, TEST_LEN, TRAIN_MIN
 
 
-def outer_folds(n, h, n_folds=6, first_valid=0):
-    """Yield (k, train_idx, test_idx). Fold test windows are the same calendar
-    origins for every horizon, so horizons are comparable."""
-    for k in range(n_folds):
+def n_folds_for(n):
+    """Every fold whose first origin can still be scored at the longest
+    horizon. Same count for every horizon, so fold calendars match."""
+    k = 0
+    while TRAIN_MIN + k * STEP < n - max(HORIZONS):
+        k += 1
+    return k
+
+
+def outer_folds(n, h, n_folds=None, first_valid=0):
+    """Yield (k, train_idx, test_idx). Fold test windows start at the same
+    calendar origins for every horizon, so horizons are comparable."""
+    for k in range(n_folds_for(n) if n_folds is None else n_folds):
         o = TRAIN_MIN + k * STEP
         test = np.arange(o, min(o + TEST_LEN, n - h))
         train = np.arange(first_valid, o - h + 1)     # t + h <= o

@@ -84,7 +84,7 @@ def test_threshold_uses_training_window_only():
 def test_folds_share_calendar_origins(df):
     origins = {h: [t[0] for _, _, t in outer_folds(len(df), h)] for h in HORIZONS}
     assert origins[1] == origins[4] == origins[8]
-    assert len(origins[1]) == 6
+    assert len(origins[1]) == 8
 
 
 # R5 -- statistical test implementation ---------------------------------------
