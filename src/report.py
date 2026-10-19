@@ -21,11 +21,12 @@ TAB = RES / "tables"
 
 # fixed model -> colour mapping (reference palette, light mode, fixed order)
 COL = {"sarima": "#2a78d6", "rf": "#eb6834", "xgb": "#1baf7a",
-       "lstm": "#eda100", "naive": "#52514e", "snaive": "#8f8d87"}
+       "lstm": "#eda100", "ens": "#6250d6", "naive": "#52514e",
+       "snaive": "#8f8d87"}
 NAME = {"naive": "Naive", "snaive": "Seasonal naive", "sarima": "SARIMA",
-        "rf": "Random Forest", "xgb": "XGBoost", "lstm": "LSTM"}
+        "rf": "Random Forest", "xgb": "XGBoost", "lstm": "LSTM",
+        "ens": "Ensemble (RF+XGB+LSTM)"}
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
-FOLD_LABEL = {0: "2016", 1: "2017", 2: "2018", 3: "2019", 4: "2020", 5: "2021"}
 
 plt.rcParams.update({
     "font.family": "DejaVu Sans", "font.size": 9, "axes.edgecolor": MUTED,
@@ -40,7 +41,22 @@ def load():
     p = pd.read_csv(RES / "predictions.csv",
                     parse_dates=["origin_week", "target_week"])
     p["base"] = p["model"].str.replace(r"_s\d+$", "", regex=True)
+    # CHANGES_v2.md #2: equal-weight ensemble, weights fixed at 1/3 (not tuned);
+    # the LSTM member is the mean of its five seeds.
+    keys = ["h", "origin"]
+    lstm = p[p.base == "lstm"].groupby(keys, as_index=False)["pred"].mean()
+    members = [p[p.model == "rf"][keys + ["pred"]], p[p.model == "xgb"][keys + ["pred"]], lstm]
+    if all(len(m) for m in members):
+        ens = pd.concat(members).groupby(keys, as_index=False)["pred"].mean()
+        base = p[p.model == "rf"].drop(columns="pred")
+        ens = base.merge(ens, on=keys).assign(model="ens", base="ens")
+        p = pd.concat([p, ens[p.columns]], ignore_index=True)
     return p
+
+
+def fold_year(q):
+    """Label a fold by the calendar year most of its target weeks fall in."""
+    return str(q.target_week.dt.year.mode().iloc[0])
 
 
 def seed_models(p):
@@ -89,7 +105,7 @@ def t_per_fold(p):
                     for _, g in q.groupby("model")]
             acc = {k2: np.mean([x[k2] for x in accs]) for k2 in accs[0]}
         one = q[q.model == q.model.iloc[0]]
-        rows.append({"model": m, "h": h, "fold": k, "year": FOLD_LABEL.get(k),
+        rows.append({"model": m, "h": h, "fold": k, "year": fold_year(q),
                      "outbreak_wks": int((one.actual > one.thr).sum()),
                      "thr": one.thr.iloc[0], **acc})
     f = pd.DataFrame(rows)
@@ -128,9 +144,11 @@ def t_alarm(p):
 
 
 def t_dm(p, acc):
-    """Pre-specified comparisons per horizon: each candidate vs naive (4) and
-    best vs runner-up (1). Absolute-error loss, matching the headline metric.
-    Holm adjustment across all tests reported alongside raw p."""
+    """Pre-specified comparisons per horizon (CHANGES_v2.md #3): each candidate
+    vs naive (4), the ensemble vs naive (1) and the best vs runner-up among the
+    four individual techniques (1). The raw p within this restricted set is the
+    primary inference, as in the CP1 proposal; Holm across all tests is a
+    robustness check. Absolute-error loss, matching the headline metric."""
     rows = []
     for h in HORIZONS:
         rep = {c: c for c in CANDIDATES}
@@ -146,6 +164,10 @@ def t_dm(p, acc):
         for c, e in series.items():
             rows.append({"h": h, "comparison": f"{c} vs naive",
                          **diebold_mariano(e, e_naive, h)})
+        q = p[(p.model == "ens") & (p.h == h)].sort_values("origin")
+        if len(q):
+            rows.append({"h": h, "comparison": "ens vs naive",
+                         **diebold_mariano((q.actual - q.pred).values, e_naive, h)})
         r = acc[(acc.h == h) & acc.base.isin(series)].sort_values("rel_mae")
         b, ru = r.base.iloc[0], r.base.iloc[1]
         rows.append({"h": h, "comparison": f"{b} vs {ru} (best vs runner-up)",
@@ -154,6 +176,50 @@ def t_dm(p, acc):
     d["p_holm"] = holm(d.p_value)
     d.to_csv(TAB / "T4_5_diebold_mariano.csv", index=False)
     return d
+
+
+def t_alarm_bootstrap(p, block=8, reps=2000, seed=0):
+    """CHANGES_v2.md #4: paired moving-block bootstrap of the difference in
+    pooled sensitivity and specificity, model minus naive, per horizon.
+    Origins are resampled in blocks of `block` consecutive weeks so the
+    autocorrelation of outbreak weeks is preserved."""
+    rng = np.random.default_rng(seed)
+    out = []
+    p2 = p.copy()
+    lstm = p2[p2.base == "lstm"].groupby(["h", "origin"], as_index=False)["pred"].mean()
+    for h in HORIZONS:
+        nv = p2[(p2.model == "naive") & (p2.h == h)].sort_values("origin")
+        a = (nv.actual > nv.thr).values
+        pn = (nv.pred > nv.thr).values
+        n = len(nv)
+        starts = rng.integers(0, n - block + 1, size=(reps, int(np.ceil(n / block))))
+        idx = (starts[:, :, None] + np.arange(block)).reshape(reps, -1)[:, :n]
+        for m in ["rf", "xgb", "lstm", "ens"]:
+            if m == "lstm":
+                q = nv[["origin"]].merge(lstm[lstm.h == h], on="origin")
+            else:
+                q = nv[["origin"]].merge(p2[(p2.model == m) & (p2.h == h)][["origin", "pred"]], on="origin")
+            if len(q) != n:
+                continue
+            pm = (q.pred.values > nv.thr.values)
+            def stats_(ii):
+                aa, mm, nn = a[ii], pm[ii], pn[ii]
+                pos, neg = aa.sum(), (~aa).sum()
+                ds = ((mm & aa).sum() - (nn & aa).sum()) / pos if pos else np.nan
+                dp = ((~mm & ~aa).sum() - (~nn & ~aa).sum()) / neg if neg else np.nan
+                return ds, dp
+            est = stats_(np.arange(n))
+            bs = np.array([stats_(ii) for ii in idx])
+            out.append({"model": m, "h": h, "d_sens": est[0],
+                        "d_sens_lo": np.nanpercentile(bs[:, 0], 2.5),
+                        "d_sens_hi": np.nanpercentile(bs[:, 0], 97.5),
+                        "p_sens_le0": float(np.mean(bs[:, 0] <= 0)),
+                        "d_spec": est[1],
+                        "d_spec_lo": np.nanpercentile(bs[:, 1], 2.5),
+                        "d_spec_hi": np.nanpercentile(bs[:, 1], 97.5)})
+    b = pd.DataFrame(out)
+    b.to_csv(TAB / "T4_9_alarm_bootstrap.csv", index=False)
+    return b
 
 
 def t_features():
@@ -178,7 +244,7 @@ def f_leadtime(acc):
     ax.axhline(1, color=MUTED, lw=1, ls="--")
     ax.text(8.25, 1.008, "Naive = 1", va="bottom", color=MUTED, fontsize=8)
     ends = []
-    for m in ["sarima", "rf", "xgb", "lstm"]:
+    for m in ["sarima", "rf", "xgb", "lstm", "ens"]:
         r = acc[acc.base == m].sort_values("h")
         if r.empty:
             continue
@@ -290,6 +356,7 @@ def main():
     f, e = t_per_fold(p)
     al = t_alarm(p)
     dm = t_dm(p, acc)
+    bb = t_alarm_bootstrap(p)
     g, ab, ts = t_features()
     f_leadtime(acc)
     f_per_fold(f)
@@ -302,6 +369,7 @@ def main():
     pd.set_option("display.width", 160)
     print(acc.round(3).to_string(index=False))
     print(dm.round(4).to_string(index=False))
+    print(bb.round(3).to_string(index=False))
     print(al[["base", "h", "sensitivity", "specificity", "episodes",
               "episodes_detected"]].round(3).to_string(index=False))
 
