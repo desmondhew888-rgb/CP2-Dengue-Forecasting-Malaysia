@@ -20,9 +20,10 @@ RES, FIG = Path("results"), Path("figures")
 TAB = RES / "tables"
 
 # fixed model -> colour mapping (reference palette, light mode, fixed order)
-COL = {"sarima": "#2a78d6", "rf": "#eb6834", "xgb": "#1baf7a",
-       "lstm": "#eda100", "ens": "#6250d6", "naive": "#52514e",
-       "snaive": "#8f8d87"}
+# same model -> colour mapping as the report's interactive charts
+COL = {"rf": "#2a78d6", "xgb": "#eb6834", "lstm": "#1baf7a",
+       "ens": "#6250d6", "sarima": "#8f8d87", "naive": "#52514e",
+       "snaive": "#b5b3ad"}
 NAME = {"naive": "Naive", "snaive": "Seasonal naive", "sarima": "SARIMA",
         "rf": "Random Forest", "xgb": "XGBoost", "lstm": "LSTM",
         "ens": "Ensemble (RF+XGB+LSTM)"}
@@ -242,7 +243,7 @@ def t_features():
 def f_leadtime(acc):
     fig, ax = plt.subplots(figsize=(6.2, 3.4))
     ax.axhline(1, color=MUTED, lw=1, ls="--")
-    ax.text(8.25, 1.008, "Naive = 1", va="bottom", color=MUTED, fontsize=8)
+    ax.text(6, 0.993, "Naive = 1", va="top", ha="center", color=MUTED, fontsize=8)
     ends = []
     for m in ["sarima", "rf", "xgb", "lstm", "ens"]:
         r = acc[acc.base == m].sort_values("h")
