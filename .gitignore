@@ -216,7 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-results/
-figures/
 data/
 *.csv
+!results/**/*.csv
+!results_v1_locked/**/*.csv
+results/_synthetic_input.csv

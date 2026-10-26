@@ -1,0 +1,25 @@
+set,model,h,rel_mae
+cases+calendar+regime,rf,1,1.0004748884585952
+cases+calendar+regime,rf,4,0.8734030575862857
+cases+calendar+regime,rf,8,0.8096301973716047
+cases+calendar+regime,xgb,1,1.1228567835984726
+cases+calendar+regime,xgb,4,0.9306524661909912
+cases+calendar+regime,xgb,8,0.8605588016461666
+cases_only,rf,1,0.9873535433454919
+cases_only,rf,4,0.8932127470254606
+cases_only,rf,8,0.8478363028195629
+cases_only,xgb,1,1.0891778977311866
+cases_only,xgb,4,0.9522053293591299
+cases_only,xgb,8,0.8896793577019425
+full,rf,1,0.9801426043102465
+full,rf,4,0.7965659606965122
+full,rf,8,0.741607057202991
+full,xgb,1,1.0001315880044055
+full,xgb,4,0.8006948370759327
+full,xgb,8,0.7673904766385929
+full+covid (post hoc),rf,1,0.9769318864992164
+full+covid (post hoc),rf,4,0.7987013706072306
+full+covid (post hoc),rf,8,0.7408552541805326
+full+covid (post hoc),xgb,1,1.0335116158978355
+full+covid (post hoc),xgb,4,0.8044154337856069
+full+covid (post hoc),xgb,8,0.7596119212240465
